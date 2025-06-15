@@ -18,16 +18,17 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional; // Explicitly import Optional for clarity
+
 /**
  * Class UserServiceImpl
- * 
- * @author username@axity.com
+ * * @author username@axity.com
  */
 @Service
 @Transactional
 @Slf4j
-public class UserServiceImpl implements UserService
-{
+public class UserServiceImpl implements UserService {
+
   @Autowired
   private UserPersistence userPersistence;
 
@@ -38,18 +39,19 @@ public class UserServiceImpl implements UserService
    * {@inheritDoc}
    */
   @Override
-  public PaginatedResponseDto<UserDto> findUsers( PaginatedRequestDto request )
-  {
-    log.debug( "%s", request );
+  public PaginatedResponseDto<UserDto> findUsers(PaginatedRequestDto request) {
+    log.debug("Request received: {}", request); // Improved logging with placeholder
 
-    int page = request.getOffset() / request.getLimit();
-    Pageable pageRequest = PageRequest.of( page, request.getLimit(), Sort.by( "id" ) );
+    // Using var for local variable type inference (Java 10+)
+    var page = request.getOffset() / request.getLimit();
+    var pageRequest = PageRequest.of(page, request.getLimit(), Sort.by("id"));
 
-    var paged = this.userPersistence.findAll( pageRequest );
+    var paged = this.userPersistence.findAll(pageRequest);
 
-    var result = new PaginatedResponseDto<UserDto>( page, request.getLimit(), paged.getTotalElements() );
+    var result = new PaginatedResponseDto<UserDto>(page, request.getLimit(), paged.getTotalElements());
 
-    paged.stream().forEach( x -> result.getData().add( this.transform( x ) ) );
+    // Stream API enhancements in Java 8+, common in Java 11
+    paged.stream().map(this::transform).forEach(result.getData()::add); 
 
     return result;
   }
@@ -58,89 +60,72 @@ public class UserServiceImpl implements UserService
    * {@inheritDoc}
    */
   @Override
-  public GenericResponseDto<UserDto> find( Integer id )
-  {
-    GenericResponseDto<UserDto> response = null;
-
-    var optional = this.userPersistence.findById( id );
-    if( optional.isPresent() )
-    {
-      response = new GenericResponseDto<>();
-      response.setBody( this.transform( optional.get() ) );
-    }
-
-    return response;
+  public GenericResponseDto<UserDto> find(Integer id) {
+    // Using var for Optional and improved handling with orElse (Java 8+)
+    var optionalUserDO = this.userPersistence.findById(id);
+    
+    // Instead of checking isPresent() and then get(), use orElse(null) or map directly
+    return optionalUserDO.map(this::transform)
+                         .map(GenericResponseDto::new) // If user is found, create new GenericResponseDto
+                         .orElse(null); // If not found, return null as per original logic
   }
 
   /**
    * {@inheritDoc}
    */
   @Override
-  public GenericResponseDto<UserDto> create( UserDto dto )
-  {
-
-    UserDO entity = new UserDO();
-    this.mapper.map( dto, entity );
+  public GenericResponseDto<UserDto> create(UserDto dto) {
+    // Using var for entity
+    var entity = new UserDO();
+    this.mapper.map(dto, entity);
     entity.setId(null);
 
-    this.userPersistence.save( entity );
+    this.userPersistence.save(entity);
 
     dto.setId(entity.getId());
 
-    return new GenericResponseDto<>( dto );
+    return new GenericResponseDto<>(dto);
   }
 
   /**
    * {@inheritDoc}
    */
   @Override
-  public GenericResponseDto<Boolean> update( UserDto dto )
-  {
-    var optional = this.userPersistence.findById( dto.getId() );
-    if( optional.isEmpty() )
-    {
-      throw new BusinessException( ErrorCode.OFFICE_NOT_FOUND );
-    }
-
-    var entity = optional.get();
+  public GenericResponseDto<Boolean> update(UserDto dto) {
+    // Using var for optional and improved handling with orElseThrow (Java 8+)
+    var entity = this.userPersistence.findById(dto.getId())
+                                     .orElseThrow(() -> new BusinessException(ErrorCode.OFFICE_NOT_FOUND));
     
-    
-    entity.setUsername( dto.getUsername() );
-    entity.setEmail( dto.getEmail() );
-    entity.setName( dto.getName() );
-    entity.setLastName( dto.getLastName() );
+    // Direct field updates
+    entity.setUsername(dto.getUsername());
+    entity.setEmail(dto.getEmail());
+    entity.setName(dto.getName());
+    entity.setLastName(dto.getLastName());
     // TODO: Actualizar entity.Roles (?) 
 
-    this.userPersistence.save( entity );
+    this.userPersistence.save(entity);
 
-    return new GenericResponseDto<>( true );
+    return new GenericResponseDto<>(true);
   }
 
   /**
    * {@inheritDoc}
    */
   @Override
-  public GenericResponseDto<Boolean> delete( Integer id )
-  {
-    var optional = this.userPersistence.findById( id );
-    if( optional.isEmpty() )
-    {
-      throw new BusinessException( ErrorCode.OFFICE_NOT_FOUND );
-    }
+  public GenericResponseDto<Boolean> delete(Integer id) {
+    // Using var for optional and improved handling with orElseThrow (Java 8+)
+    var entity = this.userPersistence.findById(id)
+                                     .orElseThrow(() -> new BusinessException(ErrorCode.OFFICE_NOT_FOUND));
 
-    var entity = optional.get();
-    this.userPersistence.delete( entity );
+    this.userPersistence.delete(entity);
 
-    return new GenericResponseDto<>( true );
+    return new GenericResponseDto<>(true);
   }
 
-  private UserDto transform( UserDO entity )
-  {
-    UserDto dto = null;
-    if( entity != null )
-    {
-      dto = this.mapper.map( entity, UserDto.class );
-    }
-    return dto;
+  private UserDto transform(UserDO entity) {
+    // Streamlined transformation using Optional.ofNullable and map (Java 8+)
+    return Optional.ofNullable(entity)
+                   .map(e -> this.mapper.map(e, UserDto.class))
+                   .orElse(null);
   }
 }
